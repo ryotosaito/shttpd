@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+pipe=pipe
+trap "rm -f $pipe" EXIT
+mkfifo $pipe
+nc -kl 3000 -w 1 0<$pipe | (
+	exec 1>$pipe
+	echo 'HTTP/1.1 200 OK'
+	echo 'Content-Type: text/html'
+	echo "Content-Length: $(wc -c index.html | awk '{print $1}')"
+	echo
+	awk '/HTTP/{system("cat " substr($2, 2))}'
+)
