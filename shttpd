@@ -71,6 +71,15 @@ cat $pipe | {
 				if [[ ${path##*.} = "html" ]]
 				then
 					mime='text/html'
+				elif [[ ${path##*.} = "css" ]]
+				then
+					mime='text/css'
+				elif [[ ${path##*.} = "js" ]]
+				then
+					mime='text/javascript'
+				elif [[ ${path##*.} = "txt" ]]
+				then
+					mime='text/plain'
 				elif [[ ${path##*.} = "png" ]]
 				then
 					mime='image/png'
