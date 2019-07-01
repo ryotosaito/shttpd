@@ -16,3 +16,4 @@ $ port=80 shttpd
   - (others: return as `application/octet-stream`)
 - encoding
   - gzip
+  - deflate (requires `pigz` command)
