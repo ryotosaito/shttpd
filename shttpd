@@ -81,6 +81,15 @@ cat $pipe | {
 					echo
 					cat $temp
 					rm $temp
+				elif [[ ${header[Accept-Encoding]} =~ deflate ]] && which pigz &>/dev/null
+				then
+					temp=$(mktemp)
+					pigz -cz $path > $temp
+					echo "Content-Encoding: deflate"
+					echo "Content-Length: $(wc -c $temp | awk '{print $1}')"
+					echo
+					cat $temp
+					rm $temp
 				else
 					echo "Content-Length: $(wc -c $path | awk '{print $1}')"
 					echo
