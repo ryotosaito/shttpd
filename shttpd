@@ -27,7 +27,7 @@ cat $pipe | {
 			declare -A header
 			read request
 			method=$(echo $request | cut -d' ' -f1)
-			path="$(pwd)$(echo $request | cut -d' ' -f2)"
+			path="$PWD$(echo $request | cut -d' ' -f2)"
 			((phase++))
 		# Phase 2: Request Headers
 		elif [[ $phase -eq 2 ]]
@@ -95,7 +95,7 @@ cat $pipe | {
 				# Check Accept-Encoding in order
 				while ! [[ -z "${header[Accept-Encoding]}" ]]
 				do
-					if [[ "${header[Accept-Encoding]%%, *}" =~ gzip ]] && which gzip &>/dev/null
+					if [[ "${header[Accept-Encoding]%%, *}" = gzip ]] && which gzip &>/dev/null
 					then
 						temp=$(mktemp)
 						cat $path | gzip --best > $temp
@@ -105,7 +105,7 @@ cat $pipe | {
 						cat $temp
 						rm $temp
 						break
-					elif [[ "${header[Accept-Encoding]%%, *} =~ deflate" ]] && which pigz &>/dev/null
+					elif [[ "${header[Accept-Encoding]%%, *} = deflate" ]] && which pigz &>/dev/null
 					then
 						temp=$(mktemp)
 						pigz -cz --best $path > $temp
