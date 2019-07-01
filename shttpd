@@ -72,25 +72,35 @@ cat $pipe | {
 				# send response
 				echo 'HTTP/1.1 200 OK'
 				echo "Content-Type: $mime"
-				if [[ ${header[Accept-Encoding]} =~ gzip ]] && which gzip &>/dev/null
+				# Check Accept-Encoding in order
+				while ! [[ -z "${header[Accept-Encoding]}" ]]
+				do
+					if [[ "${header[Accept-Encoding]%%, *}" =~ gzip ]] && which gzip &>/dev/null
+					then
+						temp=$(mktemp)
+						cat $path | gzip --best > $temp
+						echo "Content-Encoding: gzip"
+						echo "Content-Length: $(wc -c $temp | awk '{print $1}')"
+						echo
+						cat $temp
+						rm $temp
+						break
+					elif [[ "${header[Accept-Encoding]%%, *} =~ deflate" ]] && which pigz &>/dev/null
+					then
+						temp=$(mktemp)
+						pigz -cz --best $path > $temp
+						echo "Content-Encoding: deflate"
+						echo "Content-Length: $(wc -c $temp | awk '{print $1}')"
+						echo
+						cat $temp
+						rm $temp
+						break
+					fi
+					header[Accept-Encoding]="${header[Accept-Encoding]#*, }"
+				done
+				# not compressed (= "Accept-Encoding: identity")
+				if [[ -z "${header[Accept-Encoding]}" ]]
 				then
-					temp=$(mktemp)
-					cat $path | gzip > $temp
-					echo "Content-Encoding: gzip"
-					echo "Content-Length: $(wc -c $temp | awk '{print $1}')"
-					echo
-					cat $temp
-					rm $temp
-				elif [[ ${header[Accept-Encoding]} =~ deflate ]] && which pigz &>/dev/null
-				then
-					temp=$(mktemp)
-					pigz -cz $path > $temp
-					echo "Content-Encoding: deflate"
-					echo "Content-Length: $(wc -c $temp | awk '{print $1}')"
-					echo
-					cat $temp
-					rm $temp
-				else
 					echo "Content-Length: $(wc -c $path | awk '{print $1}')"
 					echo
 					cat $path
