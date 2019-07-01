@@ -26,3 +26,7 @@ $ port=80 shttpd
 ## Requirements
 - bash ^4.x
 - GNU sed (`sed` or `gsed`)
+
+## IMPORTANT NOTICE
+DO NOT USE shttpd ON YOUR PRODUCTION (OR INSECURE) ENVIRONMENT
+WE DO NOT TAKE ANY RESPONSIBILITY
