@@ -1,5 +1,16 @@
 #!/usr/bin/env bash
 
+if ! (sed --version 2>/dev/null | grep -q GNU)
+then
+	if which gsed &>/dev/null
+	then
+		sed=gsed
+	else
+		echo "GNU sed not found." >&2
+		exit 1
+	fi
+fi
+
 pipe=pipe
 trap "rm -f $pipe" EXIT
 mkfifo $pipe
@@ -25,8 +36,8 @@ cat $pipe | {
 				((phase++))
 			else
 				head=$(echo -n $line | tr -d '\r' | tr -d '\n')
-				key=$(echo -n $head | gsed -r "s/ *$//;s/([^:]*?): *(.*)$/\1/")
-				val=$(echo -n $head | gsed -r "s/ *$//;s/([^:]*?): *(.*)$/\2/")
+				key=$(echo -n $head | $sed -r "s/ *$//;s/([^:]*?): *(.*)$/\1/")
+				val=$(echo -n $head | $sed -r "s/ *$//;s/([^:]*?): *(.*)$/\2/")
 				header[$key]="$val"
 			fi
 		elif [[ $phase -eq 3 ]]
