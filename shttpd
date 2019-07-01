@@ -3,11 +3,49 @@
 pipe=pipe
 trap "rm -f $pipe" EXIT
 mkfifo $pipe
-nc -kl 3000 -w 1 0<$pipe | (
-	exec 1>$pipe
-	echo 'HTTP/1.1 200 OK'
-	echo 'Content-Type: text/html'
-	echo "Content-Length: $(wc -c index.html | awk '{print $1}')"
-	echo
-	awk '/HTTP/{system("cat " substr($2, 2))}'
-)
+
+phase=1
+method=
+path=
+cat $pipe | {
+	while :
+	do
+		if [[ $phase -eq 1 ]]
+		then
+			declare -A header
+			read request
+			method=$(echo $request | cut -d' ' -f1)
+			path="$(pwd)$(echo $request | cut -d' ' -f2)"
+			((phase++))
+		elif [[ $phase -eq 2 ]]
+		then
+			read line
+			if [[ $line = $(echo -ne "\r") ]]
+			then
+				((phase++))
+			else
+				head=$(echo -n $line | tr -d '\r' | tr -d '\n')
+				key=$(echo -n $head | gsed -r "s/ *$//;s/([^:]*?): *(.*)$/\1/")
+				val=$(echo -n $head | gsed -r "s/ *$//;s/([^:]*?): *(.*)$/\2/")
+				header[$key]="$val"
+			fi
+		elif [[ $phase -eq 3 ]]
+		then
+			echo 'HTTP/1.1 200 OK'
+			if [[ ${path##*.} = "html" ]]
+			then
+				echo 'Content-Type: text/html'
+			elif [[ ${path##*.} = "png" ]]
+			then
+				echo 'Content-Type: image/png'
+			else
+				echo 'Content-Type: application/octet-stream'
+			fi
+			echo "Content-Length: $(wc -c $path | awk '{print $1}')"
+			echo
+			cat $path
+			phase=1
+			unset header
+		fi
+	done
+} | nc -kl 3000 > $pipe
