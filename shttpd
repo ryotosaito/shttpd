@@ -42,8 +42,16 @@ cat $pipe | {
 				val=$(echo -n $head | $sed -r "s/ *$//;s/([^:]*?): *(.*)$/\2/")
 				header[$key]="$val"
 			fi
-		# Phase 3: Response
+		# Phase 3: Request Body
 		elif [[ $phase -eq 3 ]]
+		then
+			if ! [[ -z ${header[Content-Length]} ]]
+			then
+				read -rd' ' -n${header[Content-Length]} body
+			fi
+			((phase++))
+		# Phase 4: Response
+		elif [[ $phase -eq 4 ]]
 		then
 			# $path is not a regular file
 			if ! [[ -f "$path" ]]
