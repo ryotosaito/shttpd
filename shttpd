@@ -48,4 +48,4 @@ cat $pipe | {
 			unset header
 		fi
 	done
-} | nc -kl 3000 > $pipe
+} | nc -kl ${port:-3000} > $pipe
