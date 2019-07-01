@@ -21,6 +21,7 @@ path=
 cat $pipe | {
 	while :
 	do
+		# Phase 1: Request Line
 		if [[ $phase -eq 1 ]]
 		then
 			declare -A header
@@ -28,6 +29,7 @@ cat $pipe | {
 			method=$(echo $request | cut -d' ' -f1)
 			path="$(pwd)$(echo $request | cut -d' ' -f2)"
 			((phase++))
+		# Phase 2: Request Headers
 		elif [[ $phase -eq 2 ]]
 		then
 			read line
@@ -40,6 +42,7 @@ cat $pipe | {
 				val=$(echo -n $head | $sed -r "s/ *$//;s/([^:]*?): *(.*)$/\2/")
 				header[$key]="$val"
 			fi
+		# Phase 3: Response
 		elif [[ $phase -eq 3 ]]
 		then
 			# $path is not a regular file
