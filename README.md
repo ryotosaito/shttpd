@@ -15,5 +15,9 @@ $ port=80 shttpd
   - png
   - (others: return as `application/octet-stream`)
 - encoding
-  - gzip
+  - gzip (requires `gzip` command)
   - deflate (requires `pigz` command)
+
+## Requirements
+- bash ^4.x
+- GNU sed (`sed` or `gsed`)
