@@ -13,3 +13,5 @@ $ port=80 shttpd
   - html
   - png
   - (others: return as `application/octet-stream`)
+- encoding
+  - gzip

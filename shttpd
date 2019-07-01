@@ -42,19 +42,51 @@ cat $pipe | {
 			fi
 		elif [[ $phase -eq 3 ]]
 		then
-			echo 'HTTP/1.1 200 OK'
-			if [[ ${path##*.} = "html" ]]
+			# $path is not a regular file
+			if ! [[ -f "$path" ]]
 			then
-				echo 'Content-Type: text/html'
-			elif [[ ${path##*.} = "png" ]]
+				echo 'HTTP/1.1 404 Not Found'
+				echo 'Content-Length: 0'
+				echo
+			# $path is not readable
+			elif ! [[ -r "$path" ]]
 			then
-				echo 'Content-Type: image/png'
+				echo 'HTTP/1.1 403 Forbidden'
+				echo 'Content-Length: 0'
+				echo
+			# OK
 			else
-				echo 'Content-Type: application/octet-stream'
+				# set mime type
+				if [[ ${path##*.} = "html" ]]
+				then
+					mime='text/html'
+				elif [[ ${path##*.} = "png" ]]
+				then
+					mime='image/png'
+				elif [[ ${path##*.} = "jpg" ]] || [[ ${path##*.} = "jpeg" ]]
+				then
+					mime='image/jpeg'
+				else
+					mime='application/octet-stream'
+				fi
+				# send response
+				echo 'HTTP/1.1 200 OK'
+				echo "Content-Type: $mime"
+				if [[ ${header[Accept-Encoding]} =~ gzip ]] && which gzip &>/dev/null
+				then
+					temp=$(mktemp)
+					cat $path | gzip > $temp
+					echo "Content-Encoding: gzip"
+					echo "Content-Length: $(wc -c $temp | awk '{print $1}')"
+					echo
+					cat $temp
+					rm $temp
+				else
+					echo "Content-Length: $(wc -c $path | awk '{print $1}')"
+					echo
+					cat $path
+				fi
 			fi
-			echo "Content-Length: $(wc -c $path | awk '{print $1}')"
-			echo
-			cat $path
 			phase=1
 			unset header
 		fi
