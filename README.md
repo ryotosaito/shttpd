@@ -11,6 +11,7 @@ $ port=80 shttpd
 ## Features
 - returns
   - html
+  - jpeg
   - png
   - (others: return as `application/octet-stream`)
 - encoding
