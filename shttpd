@@ -53,8 +53,14 @@ cat $pipe | {
 		# Phase 4: Response
 		elif [[ $phase -eq 4 ]]
 		then
+			# avoid path traversal
+			if ! [[ "$(realpath "$path")" =~ ^$PWD ]]
+			then
+				echo 'HTTP/1.1 403 Forbidden'
+				echo 'Content-Length: 0'
+				echo
 			# $path is not a regular file
-			if ! [[ -f "$path" ]]
+			elif ! [[ -f "$path" ]]
 			then
 				echo 'HTTP/1.1 404 Not Found'
 				echo 'Content-Length: 0'

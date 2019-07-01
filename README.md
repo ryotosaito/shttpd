@@ -20,6 +20,8 @@ $ port=80 shttpd
 - encoding
   - gzip (requires `gzip` command)
   - deflate (requires `pigz` command)
+- security
+  - return 403 against path traversal
 
 ## Requirements
 - bash ^4.x
