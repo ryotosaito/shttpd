@@ -111,7 +111,7 @@ cat $pipe | {
 						cat $temp
 						rm $temp
 						break
-					elif [[ "${header[Accept-Encoding]%%, *} = deflate" ]] && which pigz &>/dev/null
+					elif [[ "${header[Accept-Encoding]%%, *}" = deflate ]] && which pigz &>/dev/null
 					then
 						temp=$(mktemp)
 						pigz -cz --best $path > $temp
