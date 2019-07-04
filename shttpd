@@ -13,9 +13,10 @@ do
 	# Phase 1: Request Line
 	if [[ $phase -eq 1 ]]
 	then
-		read request
-		method=$(echo $request | cut -d' ' -f1)
-		path="$PWD$(echo $request | cut -d' ' -f2)"
+		read request_line
+		method=${request_line%% *}
+		path="$PWD${request_line#* }"
+		path="${request_uri%% *}"
 		((phase++))
 	# Phase 2: Request Headers
 	elif [[ $phase -eq 2 ]]
@@ -25,7 +26,7 @@ do
 		then
 			((phase++))
 		else
-			head=$(echo -n $line | tr -d '\r' | tr -d '\n')
+			head=${line%%\r\n}
 			key="${head%%: *}"
 			val="${head#*: }"
 			header[$key]="$val"
@@ -92,16 +93,18 @@ do
 				if [[ "${header[Accept-Encoding]%%, *}" = gzip ]] && which gzip &>/dev/null
 				then
 					cat $path | gzip --best > $temp
+					stat=($(ls -l $temp))
+					echo "Content-Length: ${stat[4]}"
 					echo "Content-Encoding: gzip"
-					echo "Content-Length: $(wc -c $temp | awk '{print $1}')"
 					echo
 					cat $temp
 					break
 				elif [[ "${header[Accept-Encoding]%%, *}" = deflate ]] && which pigz &>/dev/null
 				then
 					pigz -cz --best $path > $temp
+					stat=($(ls -l $temp))
+					echo "Content-Length: ${stat[4]}"
 					echo "Content-Encoding: deflate"
-					echo "Content-Length: $(wc -c $temp | awk '{print $1}')"
 					echo
 					cat $temp
 					break
@@ -111,7 +114,8 @@ do
 			# not compressed (= "Accept-Encoding: identity")
 			if [[ -z "${header[Accept-Encoding]}" ]]
 			then
-				echo "Content-Length: $(wc -c $path | awk '{print $1}')"
+				stat=($(ls -l $path))
+				echo "Content-Length: ${stat[4]}"
 				echo
 				cat $path
 			fi
