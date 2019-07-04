@@ -5,7 +5,7 @@ trap "rm -f $temp" EXIT
 
 phase=1
 method=
-path=
+request_uri=
 declare -A header
 
 while :
@@ -15,8 +15,8 @@ do
 	then
 		read request_line
 		method=${request_line%% *}
-		path="$PWD${request_line#* }"
-		path="${request_uri%% *}"
+		request_uri="$PWD${request_line#* }"
+		request_uri="${request_uri%% *}"
 		((phase++))
 	# Phase 2: Request Headers
 	elif [[ $phase -eq 2 ]]
@@ -43,19 +43,19 @@ do
 	elif [[ $phase -eq 4 ]]
 	then
 		# avoid path traversal
-		if ! [[ "$(realpath "$path")" =~ ^$PWD ]]
+		if ! [[ "$(realpath "$request_uri")" =~ ^$PWD ]]
 		then
 			echo 'HTTP/1.1 403 Forbidden'
 			echo 'Content-Length: 0'
 			echo
-		# $path is not a regular file
-		elif ! [[ -f "$path" ]]
+		# $request_uri is not a regular file
+		elif ! [[ -f "$request_uri" ]]
 		then
 			echo 'HTTP/1.1 404 Not Found'
 			echo 'Content-Length: 0'
 			echo
-		# $path is not readable
-		elif ! [[ -r "$path" ]]
+		# $request_uri is not readable
+		elif ! [[ -r "$request_uri" ]]
 		then
 			echo 'HTTP/1.1 403 Forbidden'
 			echo 'Content-Length: 0'
@@ -63,22 +63,22 @@ do
 		# OK
 		else
 			# set mime type
-			if [[ ${path##*.} = "html" ]]
+			if [[ ${request_uri##*.} = "html" ]]
 			then
 				mime='text/html'
-			elif [[ ${path##*.} = "css" ]]
+			elif [[ ${request_uri##*.} = "css" ]]
 			then
 				mime='text/css'
-			elif [[ ${path##*.} = "js" ]]
+			elif [[ ${request_uri##*.} = "js" ]]
 			then
 				mime='text/javascript'
-			elif [[ ${path##*.} = "txt" ]]
+			elif [[ ${request_uri##*.} = "txt" ]]
 			then
 				mime='text/plain'
-			elif [[ ${path##*.} = "png" ]]
+			elif [[ ${request_uri##*.} = "png" ]]
 			then
 				mime='image/png'
-			elif [[ ${path##*.} = "jpg" ]] || [[ ${path##*.} = "jpeg" ]]
+			elif [[ ${request_uri##*.} = "jpg" ]] || [[ ${request_uri##*.} = "jpeg" ]]
 			then
 				mime='image/jpeg'
 			else
@@ -92,7 +92,7 @@ do
 			do
 				if [[ "${header[Accept-Encoding]%%, *}" = gzip ]] && which gzip &>/dev/null
 				then
-					cat $path | gzip --best > $temp
+					cat $request_uri | gzip --best > $temp
 					stat=($(ls -l $temp))
 					echo "Content-Length: ${stat[4]}"
 					echo "Content-Encoding: gzip"
@@ -101,7 +101,7 @@ do
 					break
 				elif [[ "${header[Accept-Encoding]%%, *}" = deflate ]] && which pigz &>/dev/null
 				then
-					pigz -cz --best $path > $temp
+					pigz -cz --best $request_uri > $temp
 					stat=($(ls -l $temp))
 					echo "Content-Length: ${stat[4]}"
 					echo "Content-Encoding: deflate"
@@ -114,10 +114,10 @@ do
 			# not compressed (= "Accept-Encoding: identity")
 			if [[ -z "${header[Accept-Encoding]}" ]]
 			then
-				stat=($(ls -l $path))
+				stat=($(ls -l $request_uri))
 				echo "Content-Length: ${stat[4]}"
 				echo
-				cat $path
+				cat $request_uri
 			fi
 		fi
 		exit
