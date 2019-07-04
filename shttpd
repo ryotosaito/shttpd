@@ -46,19 +46,16 @@ do
 		if ! [[ "$(realpath "$request_uri")" =~ ^$PWD ]]
 		then
 			echo 'HTTP/1.1 403 Forbidden'
-			echo 'Content-Length: 0'
 			echo
 		# $request_uri is not a regular file
 		elif ! [[ -f "$request_uri" ]]
 		then
 			echo 'HTTP/1.1 404 Not Found'
-			echo 'Content-Length: 0'
 			echo
 		# $request_uri is not readable
 		elif ! [[ -r "$request_uri" ]]
 		then
 			echo 'HTTP/1.1 403 Forbidden'
-			echo 'Content-Length: 0'
 			echo
 		# OK: cgi
 		elif [[ ${request_uri##*.} = "cgi" ]]
@@ -69,7 +66,6 @@ do
 				"$request_uri"
 			else
 				echo 'HTTP/1.1 403 Forbidden'
-				echo 'Content-Length: 0'
 				echo
 			fi
 		# OK: static content
