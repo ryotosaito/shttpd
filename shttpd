@@ -17,13 +17,13 @@ trap "rm -f $temp" EXIT
 phase=1
 method=
 path=
+declare -A header
 
 while :
 do
 	# Phase 1: Request Line
 	if [[ $phase -eq 1 ]]
 	then
-		declare -A header
 		read request
 		method=$(echo $request | cut -d' ' -f1)
 		path="$PWD$(echo $request | cut -d' ' -f2)"
@@ -127,7 +127,6 @@ do
 				cat $path
 			fi
 		fi
-		unset header
 		exit
 	fi
 done
