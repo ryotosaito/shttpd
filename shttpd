@@ -60,7 +60,19 @@ do
 			echo 'HTTP/1.1 403 Forbidden'
 			echo 'Content-Length: 0'
 			echo
-		# OK
+		# OK: cgi
+		elif [[ ${request_uri##*.} = "cgi" ]]
+		then
+			if [[ -x "$request_uri" ]]
+			then
+				echo 'HTTP/1.1 200 OK'
+				"$request_uri"
+			else
+				echo 'HTTP/1.1 403 Forbidden'
+				echo 'Content-Length: 0'
+				echo
+			fi
+		# OK: static content
 		else
 			# set mime type
 			if [[ ${request_uri##*.} = "html" ]]
