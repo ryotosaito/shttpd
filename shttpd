@@ -33,7 +33,7 @@ cat $pipe | {
 		elif [[ $phase -eq 2 ]]
 		then
 			read line
-			if [[ $line = $(echo -ne "\r") ]]
+			if [[ $line = $(printf "\r") ]]
 			then
 				((phase++))
 			else
