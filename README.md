@@ -3,9 +3,10 @@ HTTP server by bash
 
 ## Usage
 Execute `shttpd` on your document root directory.
-Specify port by environment `$port` (default: 3000).
+For use on network, call from `ncat` (from nmap. not `nc`).
 ```sh
-$ port=80 shttpd
+$ shttpd
+$ ncat -kl -c shttpd localhost 3000 #open port 3000, keep port alive(-k)
 ```
 
 ## Features
@@ -20,12 +21,13 @@ $ port=80 shttpd
 - encoding
   - gzip (requires `gzip` command)
   - deflate (requires `pigz` command)
+- cgi
+  - executes `.cgi` file (`+x` flag required)
 - security
-  - return 403 against path traversal
+  - returns 403 against path traversal
 
 ## Requirements
 - bash ^4.x
-- GNU sed (`sed` or `gsed`)
 
 ## IMPORTANT NOTICE
 DO NOT USE shttpd ON YOUR PRODUCTION (OR INSECURE) ENVIRONMENT  
