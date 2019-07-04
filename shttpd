@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env bash -x
 
 if ! (sed --version 2>/dev/null | grep -q GNU)
 then
@@ -11,129 +11,123 @@ then
 	fi
 fi
 
-pipe=pipe
-trap "rm -f $pipe" EXIT
-mkfifo $pipe
+temp=$(mktemp)
+trap "rm -f $temp" EXIT
 
 phase=1
 method=
 path=
-cat $pipe | {
-	while :
-	do
-		# Phase 1: Request Line
-		if [[ $phase -eq 1 ]]
+
+while :
+do
+	# Phase 1: Request Line
+	if [[ $phase -eq 1 ]]
+	then
+		declare -A header
+		read request
+		method=$(echo $request | cut -d' ' -f1)
+		path="$PWD$(echo $request | cut -d' ' -f2)"
+		((phase++))
+	# Phase 2: Request Headers
+	elif [[ $phase -eq 2 ]]
+	then
+		read line
+		if [[ $line = $(printf "\r") ]]
 		then
-			declare -A header
-			read request
-			method=$(echo $request | cut -d' ' -f1)
-			path="$PWD$(echo $request | cut -d' ' -f2)"
 			((phase++))
-		# Phase 2: Request Headers
-		elif [[ $phase -eq 2 ]]
-		then
-			read line
-			if [[ $line = $(printf "\r") ]]
-			then
-				((phase++))
-			else
-				head=$(echo -n $line | tr -d '\r' | tr -d '\n')
-				key=$(echo -n $head | $sed -r "s/ *$//;s/([^:]*?): *(.*)$/\1/")
-				val=$(echo -n $head | $sed -r "s/ *$//;s/([^:]*?): *(.*)$/\2/")
-				header[$key]="$val"
-			fi
-		# Phase 3: Request Body
-		elif [[ $phase -eq 3 ]]
-		then
-			if ! [[ -z ${header[Content-Length]} ]]
-			then
-				read -rd' ' -n${header[Content-Length]} body
-			fi
-			((phase++))
-		# Phase 4: Response
-		elif [[ $phase -eq 4 ]]
-		then
-			# avoid path traversal
-			if ! [[ "$(realpath "$path")" =~ ^$PWD ]]
-			then
-				echo 'HTTP/1.1 403 Forbidden'
-				echo 'Content-Length: 0'
-				echo
-			# $path is not a regular file
-			elif ! [[ -f "$path" ]]
-			then
-				echo 'HTTP/1.1 404 Not Found'
-				echo 'Content-Length: 0'
-				echo
-			# $path is not readable
-			elif ! [[ -r "$path" ]]
-			then
-				echo 'HTTP/1.1 403 Forbidden'
-				echo 'Content-Length: 0'
-				echo
-			# OK
-			else
-				# set mime type
-				if [[ ${path##*.} = "html" ]]
-				then
-					mime='text/html'
-				elif [[ ${path##*.} = "css" ]]
-				then
-					mime='text/css'
-				elif [[ ${path##*.} = "js" ]]
-				then
-					mime='text/javascript'
-				elif [[ ${path##*.} = "txt" ]]
-				then
-					mime='text/plain'
-				elif [[ ${path##*.} = "png" ]]
-				then
-					mime='image/png'
-				elif [[ ${path##*.} = "jpg" ]] || [[ ${path##*.} = "jpeg" ]]
-				then
-					mime='image/jpeg'
-				else
-					mime='application/octet-stream'
-				fi
-				# send response
-				echo 'HTTP/1.1 200 OK'
-				echo "Content-Type: $mime"
-				# Check Accept-Encoding in order
-				while ! [[ -z "${header[Accept-Encoding]}" ]]
-				do
-					if [[ "${header[Accept-Encoding]%%, *}" = gzip ]] && which gzip &>/dev/null
-					then
-						temp=$(mktemp)
-						cat $path | gzip --best > $temp
-						echo "Content-Encoding: gzip"
-						echo "Content-Length: $(wc -c $temp | awk '{print $1}')"
-						echo
-						cat $temp
-						rm $temp
-						break
-					elif [[ "${header[Accept-Encoding]%%, *}" = deflate ]] && which pigz &>/dev/null
-					then
-						temp=$(mktemp)
-						pigz -cz --best $path > $temp
-						echo "Content-Encoding: deflate"
-						echo "Content-Length: $(wc -c $temp | awk '{print $1}')"
-						echo
-						cat $temp
-						rm $temp
-						break
-					fi
-					header[Accept-Encoding]="${header[Accept-Encoding]#*, }"
-				done
-				# not compressed (= "Accept-Encoding: identity")
-				if [[ -z "${header[Accept-Encoding]}" ]]
-				then
-					echo "Content-Length: $(wc -c $path | awk '{print $1}')"
-					echo
-					cat $path
-				fi
-			fi
-			phase=1
-			unset header
+		else
+			head=$(echo -n $line | tr -d '\r' | tr -d '\n')
+			key=$(echo -n $head | $sed -r "s/ *$//;s/([^:]*?): *(.*)$/\1/")
+			val=$(echo -n $head | $sed -r "s/ *$//;s/([^:]*?): *(.*)$/\2/")
+			header[$key]="$val"
 		fi
-	done
-} | nc -kl ${port:-3000} > $pipe
+	# Phase 3: Request Body
+	elif [[ $phase -eq 3 ]]
+	then
+		if ! [[ -z ${header[Content-Length]} ]]
+		then
+			read -rd' ' -n${header[Content-Length]} body
+		fi
+		((phase++))
+	# Phase 4: Response
+	elif [[ $phase -eq 4 ]]
+	then
+		# avoid path traversal
+		if ! [[ "$(realpath "$path")" =~ ^$PWD ]]
+		then
+			echo 'HTTP/1.1 403 Forbidden'
+			echo 'Content-Length: 0'
+			echo
+		# $path is not a regular file
+		elif ! [[ -f "$path" ]]
+		then
+			echo 'HTTP/1.1 404 Not Found'
+			echo 'Content-Length: 0'
+			echo
+		# $path is not readable
+		elif ! [[ -r "$path" ]]
+		then
+			echo 'HTTP/1.1 403 Forbidden'
+			echo 'Content-Length: 0'
+			echo
+		# OK
+		else
+			# set mime type
+			if [[ ${path##*.} = "html" ]]
+			then
+				mime='text/html'
+			elif [[ ${path##*.} = "css" ]]
+			then
+				mime='text/css'
+			elif [[ ${path##*.} = "js" ]]
+			then
+				mime='text/javascript'
+			elif [[ ${path##*.} = "txt" ]]
+			then
+				mime='text/plain'
+			elif [[ ${path##*.} = "png" ]]
+			then
+				mime='image/png'
+			elif [[ ${path##*.} = "jpg" ]] || [[ ${path##*.} = "jpeg" ]]
+			then
+				mime='image/jpeg'
+			else
+				mime='application/octet-stream'
+			fi
+			# send response
+			echo 'HTTP/1.1 200 OK'
+			echo "Content-Type: $mime"
+			# Check Accept-Encoding in order
+			while ! [[ -z "${header[Accept-Encoding]}" ]]
+			do
+				if [[ "${header[Accept-Encoding]%%, *}" = gzip ]] && which gzip &>/dev/null
+				then
+					cat $path | gzip --best > $temp
+					echo "Content-Encoding: gzip"
+					echo "Content-Length: $(wc -c $temp | awk '{print $1}')"
+					echo
+					cat $temp
+					break
+				elif [[ "${header[Accept-Encoding]%%, *}" = deflate ]] && which pigz &>/dev/null
+				then
+					pigz -cz --best $path > $temp
+					echo "Content-Encoding: deflate"
+					echo "Content-Length: $(wc -c $temp | awk '{print $1}')"
+					echo
+					cat $temp
+					break
+				fi
+				header[Accept-Encoding]="${header[Accept-Encoding]#*, }"
+			done
+			# not compressed (= "Accept-Encoding: identity")
+			if [[ -z "${header[Accept-Encoding]}" ]]
+			then
+				echo "Content-Length: $(wc -c $path | awk '{print $1}')"
+				echo
+				cat $path
+			fi
+		fi
+		unset header
+		exit
+	fi
+done
