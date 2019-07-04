@@ -1,16 +1,5 @@
 #!/usr/bin/env bash -x
 
-if ! (sed --version 2>/dev/null | grep -q GNU)
-then
-	if which gsed &>/dev/null
-	then
-		sed=gsed
-	else
-		echo "GNU sed not found." >&2
-		exit 1
-	fi
-fi
-
 temp=$(mktemp)
 trap "rm -f $temp" EXIT
 
@@ -37,8 +26,8 @@ do
 			((phase++))
 		else
 			head=$(echo -n $line | tr -d '\r' | tr -d '\n')
-			key=$(echo -n $head | $sed -r "s/ *$//;s/([^:]*?): *(.*)$/\1/")
-			val=$(echo -n $head | $sed -r "s/ *$//;s/([^:]*?): *(.*)$/\2/")
+			key="${head%%: *}"
+			val="${head#*: }"
 			header[$key]="$val"
 		fi
 	# Phase 3: Request Body
