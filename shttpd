@@ -6,7 +6,7 @@ then
 	exit 1
 fi
 
-status=(
+http_status=(
 	[200]="OK"
 	[400]="Bad Request"
 	[403]="Forbidden"
@@ -20,16 +20,17 @@ valid_methods=(
 	"HEAD"
 )
 
-function render {
-	local format=$(cat << EOF
+html_format=$(cat << EOF
 <html>
 <head><title>%s</title></head>
 <body><h1><center>%d %s</center></h1><hr><center>shttpd</center></body>
 </html>
 EOF
 )
-	local body=$(printf "$format" "${status[$1]}" $1 "${status[$1]}")
-	printf "HTTP/1.1 %d %s\r\n" $1 "${status[$1]}"
+
+function render {
+	local body=$(printf "$html_format" "${http_status[$1]}" $1 "${http_status[$1]}")
+	printf "HTTP/1.1 %d %s\r\n" $1 "${http_status[$1]}"
 	printf "Content-Type: text/html\r\n"
 	printf "Content-Length: %d\r\n\r\n" ${#body}
 	echo -n "$body"
