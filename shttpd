@@ -6,6 +6,28 @@ then
 	exit 1
 fi
 
+status=(
+	[200]="OK"
+	[400]="Bad Request"
+	[403]="Forbidden"
+	[404]="Not Found"
+)
+
+render() {
+	format=$(cat << EOF
+<html>
+<head><title>%s</title></head>
+<body><h1><center>%d %s</center></h1><hr><center>shttpd</center></body>
+</html>
+EOF
+)
+	body=$(printf "$format" "${status[$1]}" $1 "${status[$1]}")
+	printf "HTTP/1.1 %d %s\r\n" $1 "${status[$1]}"
+	printf "Content-Type: text/html\r\n"
+	printf "Content-Length: %d\r\n\r\n" ${#body}
+	echo -n "$body"
+}
+
 temp=$(mktemp)
 trap "rm -f $temp" EXIT
 
@@ -51,18 +73,15 @@ do
 		# avoid path traversal
 		if ! [[ "$(realpath "$request_uri")" =~ ^$PWD ]]
 		then
-			echo 'HTTP/1.1 403 Forbidden'
-			echo
+			render 403
 		# $request_uri is not a regular file
 		elif ! [[ -f "$request_uri" ]]
 		then
-			echo 'HTTP/1.1 404 Not Found'
-			echo
+			render 404
 		# $request_uri is not readable
 		elif ! [[ -r "$request_uri" ]]
 		then
-			echo 'HTTP/1.1 403 Forbidden'
-			echo
+			render 403
 		# OK: cgi
 		elif [[ ${request_uri##*.} = "cgi" ]]
 		then
@@ -71,8 +90,7 @@ do
 				echo 'HTTP/1.1 200 OK'
 				"$request_uri"
 			else
-				echo 'HTTP/1.1 403 Forbidden'
-				echo
+				render 403
 			fi
 		# OK: static content
 		else
