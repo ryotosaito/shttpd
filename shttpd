@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+if [[ ${BASH_VERSION%%.*} -lt 4 ]]
+then
+	echo "Bash ^4.x required." >&2
+	exit 1
+fi
+
 temp=$(mktemp)
 trap "rm -f $temp" EXIT
 
