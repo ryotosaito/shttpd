@@ -6,7 +6,7 @@ then
 	exit 1
 fi
 
-http_status=(
+readonly http_status=(
 	[200]="OK"
 	[400]="Bad Request"
 	[403]="Forbidden"
@@ -14,13 +14,13 @@ http_status=(
 	[501]="Not Implemented"
 )
 
-valid_methods=(
+readonly valid_methods=(
 	"GET"
 	"POST"
 	"HEAD"
 )
 
-html_format=$(cat << EOF
+readonly html_format=$(cat << EOF
 <html>
 <head><title>%s</title></head>
 <body><h1><center>%d %s</center></h1><hr><center>shttpd</center></body>
@@ -70,114 +70,120 @@ function mime_from_ext {
 	printf "%s" $mime
 }
 
-temp=$(mktemp)
-trap "rm -f $temp" EXIT
+function main {
+	local -A request_header
+	local -a stat
+	local -i phase=1
+	local entity_body method request_uri
+	local request_line request_header_line
+	local key val
+	local temp=$(mktemp)
 
-phase=1
-method=
-request_uri=
-declare -A header
+	trap "rm -f $temp" EXIT
 
-while :
-do
-	# Phase 1: Request Line
-	if [[ $phase -eq 1 ]]
-	then
-		read request_line
-		method=${request_line%% *}
-		request_uri="$PWD${request_line#* }"
-		request_uri="${request_uri%% *}"
-		# given method is not valid
-		if ! in_array valid_methods $method
+	while :
+	do
+		# Phase 1: Request Line
+		if [[ $phase -eq 1 ]]
 		then
-			render 501
+			read request_line
+			method=${request_line%% *}
+			request_uri="$PWD${request_line#* }"
+			request_uri="${request_uri%% *}"
+			# given method is not valid
+			if ! in_array valid_methods $method
+			then
+				render 501
+				exit
+			fi
+			((phase++))
+		# Phase 2: Request Headers
+		elif [[ $phase -eq 2 ]]
+		then
+			read request_header_line
+			if [[ $request_header_line = $(printf "\r") ]]
+			then
+				((phase++))
+			else
+				request_header_line=${request_header_line%%\r\n}
+				key="${request_header_line%%: *}"
+				val="${request_header_line#*: }"
+				request_header[$key]="$val"
+			fi
+		# Phase 3: Request Body
+		elif [[ $phase -eq 3 ]]
+		then
+			if ! [[ -z ${request_header[Content-Length]} ]]
+			then
+				read -rd' ' -n${request_header[Content-Length]} entity_body
+			fi
+			((phase++))
+		# Phase 4: Response
+		elif [[ $phase -eq 4 ]]
+		then
+			# avoid path traversal
+			if ! [[ "$(realpath "$request_uri")" =~ ^$PWD ]]
+			then
+				render 403
+			# $request_uri is not a regular file
+			elif ! [[ -f "$request_uri" ]]
+			then
+				render 404
+			# $request_uri is not readable
+			elif ! [[ -r "$request_uri" ]]
+			then
+				render 403
+			# OK: cgi
+			elif [[ ${request_uri##*.} = "cgi" ]]
+			then
+				if [[ -x "$request_uri" ]]
+				then
+					echo 'HTTP/1.1 200 OK'
+					"$request_uri"
+				else
+					render 403
+				fi
+			# OK: static content
+			else
+				# send response
+				echo 'HTTP/1.1 200 OK'
+				echo "Content-Type: $(mime_from_ext ${request_uri##*.})"
+				# Check Accept-Encoding in order
+				while ! [[ -z "${request_header[Accept-Encoding]}" ]]
+				do
+					if [[ "${request_header[Accept-Encoding]%%, *}" = gzip ]] && which gzip &>/dev/null
+					then
+						cat $request_uri | gzip --best > $temp
+						stat=($(ls -l $temp))
+						echo "Content-Length: ${stat[4]}"
+						echo "Content-Encoding: gzip"
+						echo
+						cat $temp
+						break
+					elif [[ "${request_header[Accept-Encoding]%%, *}" = deflate ]] && which pigz &>/dev/null
+					then
+						pigz -cz --best $request_uri > $temp
+						stat=($(ls -l $temp))
+						echo "Content-Length: ${stat[4]}"
+						echo "Content-Encoding: deflate"
+						echo
+						cat $temp
+						break
+					fi
+					request_header[Accept-Encoding]="${request_header[Accept-Encoding]#*, }"
+				done
+				# not compressed (= "Accept-Encoding: identity")
+				if [[ -z "${request_header[Accept-Encoding]}" ]]
+				then
+					stat=($(ls -l $request_uri))
+					echo "Content-Length: ${stat[4]}"
+					echo
+					cat $request_uri
+				fi
+			fi
 			exit
 		fi
-		((phase++))
-	# Phase 2: Request Headers
-	elif [[ $phase -eq 2 ]]
-	then
-		read line
-		if [[ $line = $(printf "\r") ]]
-		then
-			((phase++))
-		else
-			head=${line%%\r\n}
-			key="${head%%: *}"
-			val="${head#*: }"
-			header[$key]="$val"
-		fi
-	# Phase 3: Request Body
-	elif [[ $phase -eq 3 ]]
-	then
-		if ! [[ -z ${header[Content-Length]} ]]
-		then
-			read -rd' ' -n${header[Content-Length]} body
-		fi
-		((phase++))
-	# Phase 4: Response
-	elif [[ $phase -eq 4 ]]
-	then
-		# avoid path traversal
-		if ! [[ "$(realpath "$request_uri")" =~ ^$PWD ]]
-		then
-			render 403
-		# $request_uri is not a regular file
-		elif ! [[ -f "$request_uri" ]]
-		then
-			render 404
-		# $request_uri is not readable
-		elif ! [[ -r "$request_uri" ]]
-		then
-			render 403
-		# OK: cgi
-		elif [[ ${request_uri##*.} = "cgi" ]]
-		then
-			if [[ -x "$request_uri" ]]
-			then
-				echo 'HTTP/1.1 200 OK'
-				"$request_uri"
-			else
-				render 403
-			fi
-		# OK: static content
-		else
-			# send response
-			echo 'HTTP/1.1 200 OK'
-			echo "Content-Type: $(mime_from_ext ${request_uri##*.})"
-			# Check Accept-Encoding in order
-			while ! [[ -z "${header[Accept-Encoding]}" ]]
-			do
-				if [[ "${header[Accept-Encoding]%%, *}" = gzip ]] && which gzip &>/dev/null
-				then
-					cat $request_uri | gzip --best > $temp
-					stat=($(ls -l $temp))
-					echo "Content-Length: ${stat[4]}"
-					echo "Content-Encoding: gzip"
-					echo
-					cat $temp
-					break
-				elif [[ "${header[Accept-Encoding]%%, *}" = deflate ]] && which pigz &>/dev/null
-				then
-					pigz -cz --best $request_uri > $temp
-					stat=($(ls -l $temp))
-					echo "Content-Length: ${stat[4]}"
-					echo "Content-Encoding: deflate"
-					echo
-					cat $temp
-					break
-				fi
-				header[Accept-Encoding]="${header[Accept-Encoding]#*, }"
-			done
-			# not compressed (= "Accept-Encoding: identity")
-			if [[ -z "${header[Accept-Encoding]}" ]]
-			then
-				stat=($(ls -l $request_uri))
-				echo "Content-Length: ${stat[4]}"
-				echo
-				cat $request_uri
-			fi
-		fi
-		exit
-	fi
-done
+	done
+}
+
+main
