@@ -11,6 +11,13 @@ status=(
 	[400]="Bad Request"
 	[403]="Forbidden"
 	[404]="Not Found"
+	[501]="Not Implemented"
+)
+
+valid_methods=(
+	"GET"
+	"POST"
+	"HEAD"
 )
 
 function render {
@@ -26,6 +33,19 @@ EOF
 	printf "Content-Type: text/html\r\n"
 	printf "Content-Length: %d\r\n\r\n" ${#body}
 	echo -n "$body"
+}
+
+function in_array {
+	local -n haystack=$1
+	local needle=$2
+	for val in "${haystack[@]}"
+	do
+		if [[ $val = $needle ]]
+		then
+			return 0
+		fi
+	done
+	return 1
 }
 
 temp=$(mktemp)
@@ -45,6 +65,12 @@ do
 		method=${request_line%% *}
 		request_uri="$PWD${request_line#* }"
 		request_uri="${request_uri%% *}"
+		# given method is not valid
+		if ! in_array valid_methods $method
+		then
+			render 501
+			exit
+		fi
 		((phase++))
 	# Phase 2: Request Headers
 	elif [[ $phase -eq 2 ]]
