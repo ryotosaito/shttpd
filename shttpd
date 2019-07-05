@@ -48,6 +48,27 @@ function in_array {
 	return 1
 }
 
+function mime_from_ext {
+	local mime
+	case ${request_uri##*.} in
+		html)
+			mime='text/html';;
+		css)
+			mime='text/css';;
+		js)
+			mime='text/javascript';;
+		txt)
+			mime='text/plain';;
+		png)
+			mime='image/png';;
+		jpg|jpeg)
+			mime='image/jpeg';;
+		*)
+			mime='application/octet-stream';;
+	esac
+	printf "%s" $mime
+}
+
 temp=$(mktemp)
 trap "rm -f $temp" EXIT
 
@@ -120,31 +141,9 @@ do
 			fi
 		# OK: static content
 		else
-			# set mime type
-			if [[ ${request_uri##*.} = "html" ]]
-			then
-				mime='text/html'
-			elif [[ ${request_uri##*.} = "css" ]]
-			then
-				mime='text/css'
-			elif [[ ${request_uri##*.} = "js" ]]
-			then
-				mime='text/javascript'
-			elif [[ ${request_uri##*.} = "txt" ]]
-			then
-				mime='text/plain'
-			elif [[ ${request_uri##*.} = "png" ]]
-			then
-				mime='image/png'
-			elif [[ ${request_uri##*.} = "jpg" ]] || [[ ${request_uri##*.} = "jpeg" ]]
-			then
-				mime='image/jpeg'
-			else
-				mime='application/octet-stream'
-			fi
 			# send response
 			echo 'HTTP/1.1 200 OK'
-			echo "Content-Type: $mime"
+			echo "Content-Type: $(mime_from_ext ${request_uri##*.})"
 			# Check Accept-Encoding in order
 			while ! [[ -z "${header[Accept-Encoding]}" ]]
 			do
