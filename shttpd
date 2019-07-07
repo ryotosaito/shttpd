@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-if [[ ${BASH_VERSION%%.*} -lt 4 ]]
+if ! ( [[ ${BASH_VERSINFO[0]} -ge 5 ]] || ([[ ${BASH_VERSINFO[0]} -eq 4 ]] && [[ ${BASH_VERSINFO[1]} -ge 3 ]]))
 then
-	echo "Bash ^4.x required." >&2
+	echo "Bash ^4.3 required." >&2
 	exit 1
 fi
 
