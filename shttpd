@@ -155,6 +155,7 @@ function main {
 				request_header_line=${request_header_line%%\r\n}
 				key="${request_header_line%%: *}"
 				val="${request_header_line#*: }"
+				val="${val%$(printf "\r")}"
 				request_header[$key]="$val"
 			fi
 		# Phase 3: Request Body
