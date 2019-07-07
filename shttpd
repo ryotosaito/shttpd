@@ -57,7 +57,7 @@ function in_array {
 
 function mime_from_ext {
 	local mime
-	case ${request_uri##*.} in
+	case ${1##*.} in
 		html)
 			mime='text/html';;
 		css)
