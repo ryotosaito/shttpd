@@ -7,6 +7,7 @@ For use on network, call from `ncat` (from nmap. not `nc`).
 ```sh
 $ shttpd
 $ ncat -kl -c shttpd localhost 3000 #open port 3000, keep port alive(-k)
+$ ncat --ssl -kl -c 'SCHEME=https shttpd' localhost 3000 #run as https server
 ```
 
 ## Features

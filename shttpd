@@ -121,6 +121,7 @@ function main {
 	local -A request_header
 	local -a stat
 	local -i phase=1
+	local -r scheme="${SCHEME:-http}"
 	local entity_body method request_uri
 	local request_line request_header_line
 	local key val
