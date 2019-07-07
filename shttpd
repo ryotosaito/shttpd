@@ -6,6 +6,12 @@ then
 	exit 1
 fi
 
+if ! which nkf &>/dev/null
+then
+	echo "nkf required." >&2
+	exit 1
+fi
+
 readonly http_status=(
 	[200]="OK"
 	[400]="Bad Request"
@@ -114,7 +120,7 @@ function parse_uri {
 	done
 	_parsed_uri[query_string]=$_query_string
 	_parsed_uri[file_path]=$_file_path
-	_parsed_uri[path_info]=$_path_info
+	_parsed_uri[path_info]=$(echo -n $_path_info | nkf -w --url-input)
 }
 
 function main {
@@ -202,6 +208,7 @@ function main {
 						CONTENT_TYPE=${request_header[Content-Type]} \
 						QUERY_STRING=${parsed_uri[query_string]} \
 						PATH_INFO=${parsed_uri[path_info]} \
+						PATH_TRANSLATED="${scheme}://${request_header[Host]}$request_uri" \
 						$PWD${parsed_uri[file_path]}
 				else
 					render 403

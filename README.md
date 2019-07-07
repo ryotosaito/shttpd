@@ -29,6 +29,7 @@ $ ncat --ssl -kl -c 'SCHEME=https shttpd' localhost 3000 #run as https server
 
 ## Requirements
 - bash ^4.3
+- nkf
 
 ## IMPORTANT NOTICE
 DO NOT USE shttpd ON YOUR PRODUCTION (OR INSECURE) ENVIRONMENT  
