@@ -27,7 +27,7 @@ $ ncat -kl -c shttpd localhost 3000 #open port 3000, keep port alive(-k)
   - returns 403 against path traversal
 
 ## Requirements
-- bash ^4.x
+- bash ^4.3
 
 ## IMPORTANT NOTICE
 DO NOT USE shttpd ON YOUR PRODUCTION (OR INSECURE) ENVIRONMENT  

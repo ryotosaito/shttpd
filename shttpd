@@ -70,6 +70,53 @@ function mime_from_ext {
 	printf "%s" $mime
 }
 
+function parse_uri {
+	local -n _parsed_uri=$1
+	local -r _request_uri=$2
+	local -n _status_code=$3
+	local _query_string _file_path _path_info
+	if [[ $_request_uri =~ \? ]]
+	then
+		_query_string=?${_request_uri#*\?}
+		_path_info=${_request_uri%%\?*}
+	else
+		_query_string=
+		_path_info=$_request_uri
+	fi
+
+	# preparation: remove / from $_path_info
+	while ! [[ -z $_path_info ]]
+	do
+		# put each _path step from $_path_info to $_path
+		_path_info=${_path_info#/}
+		_file_path="$_file_path/${_path_info%%/*}"
+		if [[ $_path_info =~ / ]]
+		then
+			_path_info=${_path_info#*/}
+		else
+			_path_info=
+		fi
+		if ! [[ -z $_path_info ]]
+		then
+			_path_info="/$_path_info"
+		fi
+		# $_path not exists
+		if ! [[ -e $PWD$_file_path ]]
+		then
+			_status_code=404
+			break
+		# $_path is not directory (file found)
+		elif ! [[ -d $PWD$_file_path ]]
+		then
+			_status_code=200
+			break
+		fi
+	done
+	_parsed_uri[query_string]=$_query_string
+	_parsed_uri[file_path]=$_file_path
+	_parsed_uri[path_info]=$_path_info
+}
+
 function main {
 	local -A request_header
 	local -a stat
@@ -77,7 +124,7 @@ function main {
 	local entity_body method request_uri
 	local request_line request_header_line
 	local key val
-	local temp=$(mktemp)
+	local -r temp=$(mktemp)
 
 	trap "rm -f $temp" EXIT
 
@@ -88,7 +135,7 @@ function main {
 		then
 			read request_line
 			method=${request_line%% *}
-			request_uri="$PWD${request_line#* }"
+			request_uri="${request_line#* }"
 			request_uri="${request_uri%% *}"
 			# given method is not valid
 			if ! in_array valid_methods $method
@@ -121,25 +168,39 @@ function main {
 		# Phase 4: Response
 		elif [[ $phase -eq 4 ]]
 		then
+			local -A parsed_uri #([file_path], [path_info], [query_string])
+			local -i status_code
+			parse_uri parsed_uri "$request_uri" status_code
+			local file_path="$PWD${parsed_uri[file_path]}"
 			# avoid path traversal
-			if ! [[ "$(realpath "$request_uri")" =~ ^$PWD ]]
+			if ! [[ "$(realpath "$file_path")" =~ ^$PWD ]]
 			then
 				render 403
-			# $request_uri is not a regular file
-			elif ! [[ -f "$request_uri" ]]
+			# file not exists
+			elif [[ $status_code -ne 200 ]]
 			then
-				render 404
+				render $status_code
 			# $request_uri is not readable
-			elif ! [[ -r "$request_uri" ]]
+			elif ! [[ -r "$file_path" ]]
 			then
 				render 403
 			# OK: cgi
-			elif [[ ${request_uri##*.} = "cgi" ]]
+			elif [[ ${file_path##*.} = "cgi" ]]
 			then
-				if [[ -x "$request_uri" ]]
+				if [[ -x "$file_path" ]]
 				then
 					echo 'HTTP/1.1 200 OK'
-					"$request_uri"
+					if [[ $method == GET ]]
+					then
+						entity_body=
+					fi
+					# Execute CGI
+					echo -n "$entity_body" | \
+						CONTENT_LENGTH=${request_header[Content-Length]} \
+						CONTENT_TYPE=${request_header[Content-Type]} \
+						QUERY_STRING=${parsed_uri[query_string]} \
+						PATH_INFO=${parsed_uri[path_info]} \
+						$PWD${parsed_uri[file_path]}
 				else
 					render 403
 				fi
@@ -147,13 +208,13 @@ function main {
 			else
 				# send response
 				echo 'HTTP/1.1 200 OK'
-				echo "Content-Type: $(mime_from_ext ${request_uri##*.})"
+				echo "Content-Type: $(mime_from_ext ${file_path##*.})"
 				# Check Accept-Encoding in order
 				while ! [[ -z "${request_header[Accept-Encoding]}" ]]
 				do
 					if [[ "${request_header[Accept-Encoding]%%, *}" = gzip ]] && which gzip &>/dev/null
 					then
-						cat $request_uri | gzip --best > $temp
+						cat $file_path | gzip --best > $temp
 						stat=($(ls -l $temp))
 						echo "Content-Length: ${stat[4]}"
 						echo "Content-Encoding: gzip"
@@ -162,7 +223,7 @@ function main {
 						break
 					elif [[ "${request_header[Accept-Encoding]%%, *}" = deflate ]] && which pigz &>/dev/null
 					then
-						pigz -cz --best $request_uri > $temp
+						pigz -cz --best $file_path > $temp
 						stat=($(ls -l $temp))
 						echo "Content-Length: ${stat[4]}"
 						echo "Content-Encoding: deflate"
@@ -175,10 +236,10 @@ function main {
 				# not compressed (= "Accept-Encoding: identity")
 				if [[ -z "${request_header[Accept-Encoding]}" ]]
 				then
-					stat=($(ls -l $request_uri))
+					stat=($(ls -l $file_path))
 					echo "Content-Length: ${stat[4]}"
 					echo
-					cat $request_uri
+					cat $file_path
 				fi
 			fi
 			exit
