@@ -76,11 +76,20 @@ function mime_from_ext {
 	printf "%s" $mime
 }
 
+# parse_uri:
+# Arguments:
+#   _parsed_uri:  Empty associative array.
+#                 Assigned ([file_path] [path_info] [query_string]),
+#                 like ([file_path]="/path/to/script" [path_info]="/path/info" [query_string]="?query")
+#   _request_uri: Readonly string, Like "/path/to/script/path/info?query"
+#   _status_code: Integer. 200 in success, 404 if file not found.
+#
 function parse_uri {
 	local -n _parsed_uri=$1
 	local -r _request_uri=$2
 	local -n _status_code=$3
 	local _query_string _file_path _path_info
+	# get query_string from request_uri
 	if [[ $_request_uri =~ \? ]]
 	then
 		_query_string=?${_request_uri#*\?}
@@ -90,12 +99,18 @@ function parse_uri {
 		_path_info=$_request_uri
 	fi
 
-	# preparation: remove / from $_path_info
+	# split path into file_path and path_info
 	while ! [[ -z $_path_info ]]
 	do
-		# put each _path step from $_path_info to $_path
+		# init: path_info="/path/to/script/path/info
+		#       file_path=""
+		# next: path_info="/to/script/path/info"
+		#       file_path="/path"
+		#  end: path_info="/path/info"
+		#       file_path="/path/to/script"
+		#
 		_path_info=${_path_info#/}
-		_file_path="$_file_path/${_path_info%%/*}"
+		_file_path="$_file_path/$(echo -n "${_path_info%%/*}" | nkf -w --url-input)"
 		if [[ $_path_info =~ / ]]
 		then
 			_path_info=${_path_info#*/}
@@ -106,12 +121,12 @@ function parse_uri {
 		then
 			_path_info="/$_path_info"
 		fi
-		# $_path not exists
+		# $_file_path not exists
 		if ! [[ -e $PWD$_file_path ]]
 		then
 			_status_code=404
 			break
-		# $_path is not directory (file found)
+		# $_file_path is not directory (file found)
 		elif ! [[ -d $PWD$_file_path ]]
 		then
 			_status_code=200
