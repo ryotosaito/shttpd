@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-if ! ( [[ ${BASH_VERSINFO[0]} -ge 5 ]] || ([[ ${BASH_VERSINFO[0]} -eq 4 ]] && [[ ${BASH_VERSINFO[1]} -ge 3 ]]))
+if ! { [[ ${BASH_VERSINFO[0]} -ge 5 ]] || { [[ ${BASH_VERSINFO[0]} -eq 4 ]] && [[ ${BASH_VERSINFO[1]} -ge 3 ]]; }; }
 then
 	echo "Bash ^4.3 required." >&2
 	exit 1
 fi
 
-if ! which nkf &>/dev/null
+if ! command -v nkf &>/dev/null
 then
 	echo "nkf required." >&2
 	exit 1
@@ -26,17 +26,13 @@ readonly valid_methods=(
 	"HEAD"
 )
 
-readonly html_format=$(cat << EOF
-<html>
+function render {
+	local body
+	body=$(printf "<html>
 <head><title>%s</title></head>
 <body><h1><center>%d %s</center></h1><hr><center>shttpd</center></body>
-</html>
-EOF
-)
-
-function render {
-	local body=$(printf "$html_format" "${http_status[$1]}" $1 "${http_status[$1]}")
-	printf "HTTP/1.1 %d %s\r\n" $1 "${http_status[$1]}"
+</html>" "${http_status[$1]}" "$1" "${http_status[$1]}")
+	printf "HTTP/1.1 %d %s\r\n" "$1" "${http_status[$1]}"
 	printf "Content-Type: text/html\r\n"
 	printf "Content-Length: %d\r\n\r\n" ${#body}
 	echo -n "$body"
@@ -47,12 +43,18 @@ function in_array {
 	local needle=$2
 	for val in "${haystack[@]}"
 	do
-		if [[ $val = $needle ]]
+		if [[ $val = "$needle" ]]
 		then
 			return 0
 		fi
 	done
 	return 1
+}
+
+function getstat {
+	local -n _stat=$1
+	local _file=$2
+	IFS=' ' read -ra _stat < <(ls -l "$_file")
 }
 
 function mime_from_ext {
@@ -93,7 +95,7 @@ function parse_uri {
 	# get query_string from request_uri
 	if [[ $_request_uri =~ \? ]]
 	then
-		_query_string=?${_request_uri#*\?}
+		_query_string="?${_request_uri#*\?}"
 		_path_info=${_request_uri%%\?*}
 	else
 		_query_string=
@@ -101,7 +103,7 @@ function parse_uri {
 	fi
 
 	# split path into file_path and path_info
-	while ! [[ -z $_path_info ]]
+	while [[ -n $_path_info ]]
 	do
 		# init: path_info="/path/to/script/path/info
 		#       file_path=""
@@ -118,7 +120,7 @@ function parse_uri {
 		else
 			_path_info=
 		fi
-		if ! [[ -z $_path_info ]]
+		if [[ -n $_path_info ]]
 		then
 			_path_info="/$_path_info"
 		fi
@@ -148,19 +150,19 @@ function main {
 	local key val
 	local -r temp=$(mktemp)
 
-	trap "rm -f $temp" EXIT
+	trap 'rm -f "$temp"' EXIT
 
 	while :
 	do
 		# Phase 1: Request Line
 		if [[ $phase -eq 1 ]]
 		then
-			read request_line
+			read -r request_line
 			method=${request_line%% *}
 			request_uri="${request_line#* }"
 			request_uri="${request_uri%% *}"
 			# given method is not valid
-			if ! in_array valid_methods $method
+			if ! in_array valid_methods "$method"
 			then
 				render 501
 				exit
@@ -169,7 +171,7 @@ function main {
 		# Phase 2: Request Headers
 		elif [[ $phase -eq 2 ]]
 		then
-			read request_header_line
+			read -r request_header_line
 			if [[ $request_header_line = $(printf "\r") ]]
 			then
 				((phase++))
@@ -183,9 +185,9 @@ function main {
 		# Phase 3: Request Body
 		elif [[ $phase -eq 3 ]]
 		then
-			if ! [[ -z ${request_header[Content-Length]} ]]
+			if [[ -n ${request_header[Content-Length]} ]]
 			then
-				read -rd' ' -n${request_header[Content-Length]} entity_body
+				read -rd' ' -n"${request_header[Content-Length]}" entity_body
 			fi
 			((phase++))
 		# Phase 4: Response
@@ -202,7 +204,7 @@ function main {
 			# file not exists
 			elif [[ $status_code -ne 200 ]]
 			then
-				render $status_code
+				render "$status_code"
 			# $request_uri is not readable or is not a file
 			elif ! [[ -r "$file_path" ]] || ! [[ -f "$file_path" ]]
 			then
@@ -224,7 +226,7 @@ function main {
 						QUERY_STRING=${parsed_uri[query_string]} \
 						PATH_INFO=${parsed_uri[path_info]} \
 						PATH_TRANSLATED="${scheme}://${request_header[Host]}$request_uri" \
-						$PWD${parsed_uri[file_path]}
+						"$PWD${parsed_uri[file_path]}"
 				else
 					render 403
 				fi
@@ -232,27 +234,27 @@ function main {
 			else
 				# send response
 				echo 'HTTP/1.1 200 OK'
-				echo "Content-Type: $(mime_from_ext ${file_path##*.})"
+				echo "Content-Type: $(mime_from_ext "${file_path##*.}")"
 				# Check Accept-Encoding in order
-				while ! [[ -z "${request_header[Accept-Encoding]}" ]]
+				while [[ -n "${request_header[Accept-Encoding]}" ]]
 				do
-					if [[ "${request_header[Accept-Encoding]%%, *}" = gzip ]] && which gzip &>/dev/null
+					if [[ "${request_header[Accept-Encoding]%%, *}" = gzip ]] && command -v gzip &>/dev/null
 					then
-						cat $file_path | gzip --best > $temp
-						stat=($(ls -l $temp))
+						gzip --best < "$file_path" > "$temp"
+						getstat stat "$temp"
 						echo "Content-Length: ${stat[4]}"
 						echo "Content-Encoding: gzip"
 						echo
-						cat $temp
+						cat "$temp"
 						break
-					elif [[ "${request_header[Accept-Encoding]%%, *}" = deflate ]] && which pigz &>/dev/null
+					elif [[ "${request_header[Accept-Encoding]%%, *}" = deflate ]] && command -v pigz &>/dev/null
 					then
-						pigz -cz --best $file_path > $temp
-						stat=($(ls -l $temp))
+						pigz -cz --best "$file_path" > "$temp"
+						getstat stat "$temp"
 						echo "Content-Length: ${stat[4]}"
 						echo "Content-Encoding: deflate"
 						echo
-						cat $temp
+						cat "$temp"
 						break
 					fi
 					request_header[Accept-Encoding]="${request_header[Accept-Encoding]#*, }"
@@ -260,10 +262,10 @@ function main {
 				# not compressed (= "Accept-Encoding: identity")
 				if [[ -z "${request_header[Accept-Encoding]}" ]]
 				then
-					stat=($(ls -l $file_path))
+					getstat stat "$file_path"
 					echo "Content-Length: ${stat[4]}"
 					echo
-					cat $file_path
+					cat "$file_path"
 				fi
 			fi
 			exit
