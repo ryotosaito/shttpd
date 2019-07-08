@@ -89,6 +89,7 @@ function parse_uri {
 	local -r _request_uri=$2
 	local -n _status_code=$3
 	local _query_string _file_path _path_info
+	_status_code=200
 	# get query_string from request_uri
 	if [[ $_request_uri =~ \? ]]
 	then
@@ -129,7 +130,6 @@ function parse_uri {
 		# $_file_path is not directory (file found)
 		elif ! [[ -d $PWD$_file_path ]]
 		then
-			_status_code=200
 			break
 		fi
 	done
@@ -203,8 +203,8 @@ function main {
 			elif [[ $status_code -ne 200 ]]
 			then
 				render $status_code
-			# $request_uri is not readable
-			elif ! [[ -r "$file_path" ]]
+			# $request_uri is not readable or is not a file
+			elif ! [[ -r "$file_path" ]] || ! [[ -f "$file_path" ]]
 			then
 				render 403
 			# OK: cgi
