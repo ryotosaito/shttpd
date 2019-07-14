@@ -26,6 +26,15 @@ readonly valid_methods=(
 	"HEAD"
 )
 
+readonly index_order=(
+	"index.html"
+	"index.cgi"
+)
+
+readonly cgi_extensions=(
+	"cgi"
+)
+
 function render {
 	local body
 	body=$(printf "<html>
@@ -84,60 +93,78 @@ function mime_from_ext {
 #                 Assigned ([file_path] [path_info] [query_string]),
 #                 like ([file_path]="/path/to/script" [path_info]="/path/info" [query_string]="?query")
 #   _request_uri: Readonly string, Like "/path/to/script/path/info?query"
-#   _status_code: Integer. 200 in success, 404 if file not found.
 #
 function parse_uri {
 	local -n _parsed_uri=$1
 	local -r _request_uri=$2
-	local -n _status_code=$3
-	local _query_string _file_path _path_info
-	_status_code=200
+	local _uri_left
+	local _query_string _path_info
+	local _dirname _filename
 	# get query_string from request_uri
 	if [[ $_request_uri =~ \? ]]
 	then
-		_query_string="?${_request_uri#*\?}"
-		_path_info=${_request_uri%%\?*}
+		_query_string="${_request_uri#*\?}"
+		_uri_left=${_request_uri%%\?*}
 	else
 		_query_string=
-		_path_info=$_request_uri
 	fi
 
-	# split path into file_path and path_info
-	while [[ -n $_path_info ]]
-	do
-		# init: path_info="/path/to/script/path/info
-		#       file_path=""
-		# next: path_info="/to/script/path/info"
-		#       file_path="/path"
-		#  end: path_info="/path/info"
-		#       file_path="/path/to/script"
-		#
-		_path_info=${_path_info#/}
-		_file_path="$_file_path/$(echo -n "${_path_info%%/*}" | nkf -w --url-input)"
-		if [[ $_path_info =~ / ]]
-		then
-			_path_info=${_path_info#*/}
-		else
-			_path_info=
-		fi
-		if [[ -n $_path_info ]]
-		then
-			_path_info="/$_path_info"
-		fi
-		# $_file_path not exists
-		if ! [[ -e $PWD$_file_path ]]
-		then
-			_status_code=404
-			break
-		# $_file_path is not directory (file found)
-		elif ! [[ -d $PWD$_file_path ]]
-		then
-			break
-		fi
-	done
+	# request_uri except query_string ends with /
+	if [[ $_uri_left =~ \/$ ]] || [[ -z $_uri_left ]]
+	then
+		_uri_left=${uri_left%/}/
+		for index in "${index_order[@]}"
+		do
+			if [[ -e $PWD$_uri_left$index ]]
+			then
+				_dirname="$_uri_left"
+				_filename="$index"
+				break
+			fi
+		done
+	else
+		_path_info="$_uri_left"
+		# split path into file_path and path_info
+		while [[ -n $_path_info ]]
+		do
+			# init: path_info="/path/to/script.cgi/path/info
+			#        filename=""
+			#         dirname=""
+			# next: path_info="/to/script.cgi/path/info"
+			#        filename="/path"
+			#         dirname=""
+			# next: path_info="/script.cgi/path/info"
+			#        filename="/to"
+			#         dirname="/path"
+			#  end: path_info="/path/info"
+			#        filename="/script.cgi"
+			#         dirname="/path/to"
+			#
+			_path_info=${_path_info#/}
+			_dirname="$_dirname$_filename"
+			_filename="/$(echo -n "${_path_info%%/*}" | nkf -w --url-input)"
+			if [[ $_path_info =~ / ]]
+			then
+				_path_info=${_path_info#*/}
+			else
+				_path_info=
+			fi
+			if [[ -n $_path_info ]]
+			then
+				_path_info="/$_path_info"
+			fi
+			for ext in "${cgi_extensions[@]}"
+			do
+				if [[ "${_filename##*.}" = $ext ]]
+				then
+					break 2
+				fi
+			done
+		done
+	fi
 	_parsed_uri[query_string]=$_query_string
-	_parsed_uri[file_path]=$_file_path
-	_parsed_uri[path_info]=$(echo -n $_path_info | nkf -w --url-input)
+	_parsed_uri[file_path]="$_dirname$_filename"
+	_parsed_uri[path_info]=$_path_info
 }
 
 function main {
@@ -194,17 +221,17 @@ function main {
 		elif [[ $phase -eq 4 ]]
 		then
 			local -A parsed_uri #([file_path], [path_info], [query_string])
-			local -i status_code
-			parse_uri parsed_uri "$request_uri" status_code
+			parse_uri parsed_uri "$request_uri"
+			declare -p parsed_uri >&2
 			local file_path="$PWD${parsed_uri[file_path]}"
 			# avoid path traversal
 			if ! [[ "$(realpath "$file_path")" =~ ^$PWD ]]
 			then
 				render 403
 			# file not exists
-			elif [[ $status_code -ne 200 ]]
+			elif ! [[ -e $file_path ]]
 			then
-				render "$status_code"
+				render 404
 			# $request_uri is not readable or is not a file
 			elif ! [[ -r "$file_path" ]] || ! [[ -f "$file_path" ]]
 			then
