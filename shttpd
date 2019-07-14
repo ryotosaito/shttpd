@@ -107,6 +107,7 @@ function parse_uri {
 		_uri_left=${_request_uri%%\?*}
 	else
 		_query_string=
+		_uri_left="${_request_uri}"
 	fi
 
 	# request_uri except query_string ends with /
@@ -222,7 +223,6 @@ function main {
 		then
 			local -A parsed_uri #([file_path], [path_info], [query_string])
 			parse_uri parsed_uri "$request_uri"
-			declare -p parsed_uri >&2
 			local file_path="$PWD${parsed_uri[file_path]}"
 			# avoid path traversal
 			if ! [[ "$(realpath "$file_path")" =~ ^$PWD ]]
