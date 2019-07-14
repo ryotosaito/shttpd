@@ -22,7 +22,7 @@ $ ncat --ssl -kl -c 'SCHEME=https shttpd' localhost 3000 #run as https server
 - encoding
   - gzip (requires `gzip` command)
   - deflate (requires `pigz` command)
-- cgi
+- cgi(EXPERIMENTAL)
   - executes `.cgi` file (`+x` flag required)
 - security
   - returns 403 against path traversal
