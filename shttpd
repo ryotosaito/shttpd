@@ -110,9 +110,9 @@ function parse_uri {
 	fi
 
 	# request_uri except query_string ends with /
-	if [[ $_uri_left =~ \/$ ]] || [[ -z $_uri_left ]]
+	if [[ $_uri_left =~ /$ ]] || [[ -z $_uri_left ]]
 	then
-		_uri_left=${uri_left%/}/
+		_uri_left=${_uri_left%/}/
 		for index in "${index_order[@]}"
 		do
 			if [[ -e $PWD$_uri_left$index ]]
@@ -155,7 +155,7 @@ function parse_uri {
 			fi
 			for ext in "${cgi_extensions[@]}"
 			do
-				if [[ "${_filename##*.}" = $ext ]]
+				if [[ "${_filename##*.}" = "$ext" ]]
 				then
 					break 2
 				fi
@@ -301,3 +301,6 @@ function main {
 }
 
 main
+#declare -A info
+#parse_uri info $1
+#declare -p info >&2
