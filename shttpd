@@ -262,6 +262,7 @@ function main {
 				# send response
 				echo 'HTTP/1.1 200 OK'
 				echo "Content-Type: $(mime_from_ext "${file_path##*.}")"
+				echo "Date: $(date -u '+%a, %d %b %Y %H:%M:%S GMT')"
 				# Check Accept-Encoding in order
 				while [[ -n "${request_header[Accept-Encoding]}" ]]
 				do
